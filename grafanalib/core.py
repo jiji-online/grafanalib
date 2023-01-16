@@ -2269,7 +2269,7 @@ class TimeSeries(Panel):
     :param thresholds: single stat thresholds
     :param tooltipMode: When you hover your cursor over the visualization, Grafana can display tooltips
         single (Default), multi, none
-    :param tooltipSort: To sort the tooltips
+    :param tooltipSort: Hover tooltip sorting mode
         none (Default), asc, desc
     :param unit: units
     :param thresholdsStyleMode: thresholds style mode off (Default), area, line, line+area
