@@ -2251,6 +2251,9 @@ class TimeSeries(Panel):
     :param legendDisplayMode: refine how the legend appears in your visualization
         list (Default), table, hidden
     :param legendPlacement: bottom (Default), right
+    :param legendSortBy: label to sort the legend by, distinct from calculatio names
+        First, Last, Min, Max, Mean, Total, Count, etc.
+    :param legendSortDesc: sort in descending order
     :param legendCalcs: which calculations should be displayed in the legend. Defaults to an empty list.
         Possible values are: allIsNull, allIsZero, changeCount, count, delta, diff, diffperc,
         distinctCount, firstNotNull, max, mean, min, logmin, range, step, total. For more information see
@@ -2289,6 +2292,8 @@ class TimeSeries(Panel):
     gradientMode = attr.ib(default='none', validator=instance_of(str))
     legendDisplayMode = attr.ib(default='list', validator=instance_of(str))
     legendPlacement = attr.ib(default='bottom', validator=instance_of(str))
+    legendSortBy = attr.ib(default='', validator=instance_of(str))
+    legendSortDesc = attr.ib(default=False, validator=instance_of(bool))
     legendCalcs = attr.ib(
         factory=list,
         validator=attr.validators.deep_iterable(
@@ -2386,6 +2391,8 @@ class TimeSeries(Panel):
                     'legend': {
                         'displayMode': self.legendDisplayMode,
                         'placement': self.legendPlacement,
+                        'sortBy': self.legendSortBy,
+                        'sortDesc': self.legendSortDesc,
                         'calcs': self.legendCalcs
                     },
                     'tooltip': {
