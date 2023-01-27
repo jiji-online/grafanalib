@@ -299,6 +299,16 @@ GRAPH_TOOLTIP_MODE_SHARED_TOOLTIP = 2  # Shared crosshair AND tooltip
 DEFAULT_AUTO_COUNT = 30
 DEFAULT_MIN_AUTO_INTERVAL = '10s'
 
+NOTIFICATION_POLICY_GROUP_BY_GRAFANA_FOLDER = "grafana_folder"
+NOTIFICATION_POLICY_GROUP_BY_ALERT_NAME = "alertname"
+NOTIFICATION_POLICY_GROUP_BY_DISABLED = "..."
+
+NOTIFICATION_POLICY_MATCH_OPERATOR_EQUAL = "="
+NOTIFICATION_POLICY_MATCHER_OPERATOR_NOT_EQUAL = "!="
+NOTIFICATION_POLICY_MATCHER_OPERATOR_MATCH_REGEXP = "=~"
+NOTIFICATION_POLICY_MATCHER_OPERATOR_DOES_NOT_MATCH_REGEXP = "!~"
+
+
 
 @attr.s
 class Mapping(object):
@@ -1684,6 +1694,253 @@ class Notification(object):
     def to_json_data(self):
         return {
             'uid': self.uid,
+        }
+
+
+def is_valid_routes(instance, attribute, value):
+    if not isinstance(value, list):
+        raise ValueError('routes must be a list of NotificationPolicyRoute objects')
+
+    for route in value:
+        if not isinstance(route, NotificationPolicyRoute):
+            raise ValueError(
+                f"{attribute.name} must either be a NotificationPolicyRoute"
+            )
+
+
+def is_valid_group_by(instance, attribute, value):
+    if not isinstance(value, list):
+        raise ValueError(f"{attribute.name} must be a list")
+
+    if NOTIFICATION_POLICY_GROUP_BY_DISABLED in value and len(value) > 1:
+        raise ValueError(
+            f"{attribute.name} must be a list with only one element when "
+            f"{NOTIFICATION_POLICY_GROUP_BY_DISABLED} is used"
+        )
+
+    if len(value) > 1 and \
+       all(
+           v not in [
+               NOTIFICATION_POLICY_GROUP_BY_ALERT_NAME,
+               NOTIFICATION_POLICY_GROUP_BY_GRAFANA_FOLDER
+           ] for v in value):
+        raise ValueError(
+            f"{attribute.name} must be a list with only elements in "
+            f"{NOTIFICATION_POLICY_GROUP_BY_GRAFANA_FOLDER, NOTIFICATION_POLICY_GROUP_BY_ALERT_NAME}, but got {value}"
+        )
+
+
+def is_valid_object_matchers(instance, attribute, value):
+    if not isinstance(value, list):
+        raise ValueError(f"{attribute.name} must be a list of NotificationPolicyObjectMatcher objects")
+
+    for matcher in value:
+        if not isinstance(matcher, NotificationPolicyRouteObjectMatcher):
+            raise ValueError(
+                f"{attribute.name} must either be a NotificationPolicyRouteObjectMatcher"
+            )
+
+
+@attr.s
+class NotificationPolicy(object):
+    """
+    Used to generate JSON data valid for HTTP API root notification policy and nested notifies routes
+
+    param
+
+    :param group_wait: The waiting time until the initial notification is sent for a new group
+        created by an incoming alert. If empty it will be inherited from the parent policy.
+    :param group_interval: The waiting time to send a batch of new alerts for that group after the
+        first notification was sent. If empty it will be inherited from the parent policy.
+    :param repeat_interval: The waiting time to resend an alert after they have successfully been sent.
+    """
+
+    receiver = attr.ib()
+    group_by = attr.ib(validator=is_valid_group_by)
+    routes = attr.ib(validator=is_valid_routes)
+    group_wait = attr.ib(default='30s', validator=attr.validators.optional(instance_of(str)))
+    group_interval = attr.ib(default='5m', validator=attr.validators.optional(instance_of(str)))
+    repeat_interval = attr.ib(default='4h', validator=attr.validators.optional(instance_of(str)))
+
+    def to_json_data(self):
+        return {
+            "receiver": self.receiver,
+            "group_by": self.group_by,
+            "routes": self.routes,
+            "group_wait": self.group_wait,
+            "group_interval": self.group_interval,
+            "repeat_interval": self.repeat_interval,
+        }
+
+
+@attr.s
+class NotificationPolicyRoute(object):
+    """
+    Used to generate JSON data valid for route field in HTTP API notification policies
+
+    :param receiver: Name of the receiver to send notifications
+    :param group_by: Group alerts when you receive a notification based on labels.
+        If empty it will be inherited from the parent policy. Possible values are:
+        NOTIFICATION_POLICY_GROUP_BY_DISABLED - Grouping is disabled
+        NOTIFICATION_POLICY_GROUP_BY_GRAFANA_FOLDER - Group by Grafana folder
+        NOTIFICATION_POLICY_GROUP_BY_ALERT_NAME - Group by alert name
+    :param object_matchers: List of object matchers for this route.
+        Using for linking alert instance  to notification policy. If no matchers are specified,
+        this notification policy will handle all alert instances.
+    :param mute_time_intervals: List of time intervals when notifications are muted
+    :param continue_ Continue matching subsequent sibling nodes
+    :param routes: List of child routes.
+
+    Override general timings
+    :param group_wait: The waiting time until the initial notification is sent for a new group
+        created by an incoming alert. If empty it will be inherited from the parent policy.
+    :param group_interval: The waiting time to send a batch of new alerts for that group after the
+        first notification was sent. If empty it will be inherited from the parent policy.
+    :param repeat_interval: The waiting time to resend an alert after they have successfully been sent.
+    """
+
+    receiver = attr.ib(validator=instance_of(str))
+    group_by = attr.ib(validator=attr.validators.optional(is_valid_group_by))
+    object_matchers = attr.ib(validator=attr.validators.optional(is_valid_object_matchers))
+    mute_time_intervals = attr.ib(factory=list, validator=attr.validators.optional(instance_of(list)))
+    continue_ = attr.ib(default=False, validator=attr.validators.optional(instance_of(bool)))
+    routes = attr.ib(factory=list, validator=attr.validators.optional(instance_of(list)))
+    group_wait = attr.ib(default='30s', validator=attr.validators.optional(instance_of(str)))
+    group_interval = attr.ib(default='5m', validator=attr.validators.optional(instance_of(str)))
+    repeat_interval = attr.ib(default='4h', validator=attr.validators.optional(instance_of(str)))
+
+    def to_json_data(self):
+        return {
+            "receiver": self.receiver,
+            "group_by": self.group_by,
+            "object_matchers": self.object_matchers,
+            "routes": self.routes,
+            "mute_time_intervals": self.mute_time_intervals,
+            "continue": self.continue_,
+            "group_wait": self.group_wait,
+            "group_interval": self.group_interval,
+            "repeat_interval": self.repeat_interval,
+        }
+
+
+@attr.s
+class NotificationPolicyRouteObjectMatcher(object):
+    """
+    Used to generate JSON data valid for HTTP API notification policy route object matcher
+
+    :param key:
+    :param value:
+    :param match_operator: Possible values are:
+        NOTIFICATION_POLICY_MATCH_OPERATOR_EQUAL - Equal (Default)
+        NOTIFICATION_POLICY_MATCH_OPERATOR_NOT_EQUAL - Not equal
+        NOTIFICATION_POLICY_MATCH_OPERATOR_REGEX - Regex
+        NOTIFICATION_POLICY_MATCH_OPERATOR_NOT_REGEX - Not regex
+    """
+
+    key = attr.ib(validator=instance_of(str))
+    value = attr.ib(validator=instance_of(str))
+    match_operator = attr.ib(default=NOTIFICATION_POLICY_MATCH_OPERATOR_EQUAL, validator=in_([
+        NOTIFICATION_POLICY_MATCH_OPERATOR_EQUAL,
+        NOTIFICATION_POLICY_MATCHER_OPERATOR_NOT_EQUAL,
+        NOTIFICATION_POLICY_MATCHER_OPERATOR_MATCH_REGEXP,
+        NOTIFICATION_POLICY_MATCHER_OPERATOR_DOES_NOT_MATCH_REGEXP,
+    ]))
+
+    def to_json_data(self):
+        return [
+            self.key,
+            self.match_operator,
+            self.value,
+        ]
+
+
+@attr.s
+class MuteTiming(object):
+    """
+    Used to generate JSON data valid for HTTP API Mute timings
+    https://grafana.com/docs/grafana/latest/developers/http_api/alerting_provisioning/#mute-timings
+
+    :param name: Name of the mute timing
+    :param time_intervals: List of time intervals when notifications are muted
+    """
+
+    name = attr.ib(validator=instance_of(str))
+    time_intervals = attr.ib(factory=list, validator=instance_of(list))
+
+    def to_json_data(self):
+        return {
+            "name": self.name,
+            "time_intervals": self.time_intervals,
+        }
+
+
+def is_valid_times_for_mute_time_interval(instance, attribute, value):
+    if not isinstance(value, list):
+        raise ValueError(f"{attribute.name} must be a list of strings")
+
+    for mute_timing in value:
+        if not isinstance(mute_timing, MuteTimingTimeObject):
+            raise ValueError(f"{attribute.name} must be a list of strings")
+
+
+@attr.s
+class MuteTimingTimeInterval(object):
+    """
+    Used to generate time_intervals part of JSON data for HTTP API Mute timing time intervals
+    https://grafana.com/docs/grafana/latest/developers/http_api/alerting_provisioning/#mute-timings
+
+    A time interval is a definition for a moment in time. All fields are lists, and at least one list
+    element must be satisfied to match the field. If a field is left blank, any moment of time will
+    match the field. For an instant of time to match a complete time interval, all fields must match.
+    A mute timing can contain multiple time intervals.
+
+    :param times: List of time intervals when notifications are muted. Use MuteTimingTimeObject class
+    :param weekdays: List of weekdays when notifications are muted. Possible values are:
+
+    :param days_of_month: List of days of month when notifications are muted. Possible values are:
+
+    :param months: List of months when notifications are muted. Possible values are:
+
+    :param years: List of years when notifications are muted. Possible values are:
+
+
+
+    """
+
+    times = attr.ib(
+        factory=list, validator=is_valid_times_for_mute_time_interval)
+    weekdays = attr.ib(
+        factory=list, validator=attr.validators.optional(instance_of(list)))
+    days_of_month = attr.ib(
+        factory=list, validator=attr.validators.optional(instance_of(list)))
+    months = attr.ib(
+        factory=list, validator=attr.validators.optional(instance_of(list)))
+    years = attr.ib(
+        factory=list, validator=attr.validators.optional(instance_of(list)))
+
+    def to_json_data(self):
+        return {
+            "times": self.times,
+            "weekdays": self.weekdays,
+            "days_of_month": self.days_of_month,
+            "months": self.months,
+            "years": self.years,
+        }
+
+
+@attr.s
+class MuteTimingTimeObject(object):
+    """
+    :param start_time string in format 'HH:MM' and must be between 00:00 and 24:00 UTC
+    :param end_time string in format 'HH:MM' and must be between 00:00 and 24:00 UTC
+    """
+    start_time = attr.ib(validator=instance_of(str))
+    end_time = attr.ib(validator=instance_of(str))
+
+    def to_json_data(self):
+        return {
+            "start_time": self.start_time,
+            "end_time": self.end_time
         }
 
 
