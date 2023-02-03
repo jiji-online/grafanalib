@@ -1704,7 +1704,7 @@ def is_valid_routes(instance, attribute, value):
     for route in value:
         if not isinstance(route, NotificationPolicyRoute):
             raise ValueError(
-                f"{attribute.name} must either be a NotificationPolicyRoute"
+                f"{attribute.name} with value {route} must either be a NotificationPolicyRoute"
             )
 
 
@@ -1737,7 +1737,7 @@ def is_valid_object_matchers(instance, attribute, value):
     for matcher in value:
         if not isinstance(matcher, NotificationPolicyRouteObjectMatcher):
             raise ValueError(
-                f"{attribute.name} must either be a NotificationPolicyRouteObjectMatcher"
+                f"{attribute.name} with value {matcher} must be a NotificationPolicyRouteObjectMatcher"
             )
 
 
@@ -1758,9 +1758,9 @@ class NotificationPolicy(object):
     receiver = attr.ib()
     group_by = attr.ib(validator=is_valid_group_by)
     routes = attr.ib(validator=is_valid_routes)
-    group_wait = attr.ib(default='30s', validator=attr.validators.optional(instance_of(str)))
-    group_interval = attr.ib(default='5m', validator=attr.validators.optional(instance_of(str)))
-    repeat_interval = attr.ib(default='4h', validator=attr.validators.optional(instance_of(str)))
+    group_wait = attr.ib(default='30s', validator=instance_of(str))
+    group_interval = attr.ib(default='5m', validator=instance_of(str))
+    repeat_interval = attr.ib(default='4h', validator=instance_of(str))
 
     def to_json_data(self):
         return {
@@ -1800,14 +1800,14 @@ class NotificationPolicyRoute(object):
     """
 
     receiver = attr.ib(validator=instance_of(str))
-    group_by = attr.ib(validator=attr.validators.optional(is_valid_group_by))
-    object_matchers = attr.ib(validator=attr.validators.optional(is_valid_object_matchers))
-    mute_time_intervals = attr.ib(factory=list, validator=attr.validators.optional(instance_of(list)))
-    continue_ = attr.ib(default=False, validator=attr.validators.optional(instance_of(bool)))
-    routes = attr.ib(factory=list, validator=attr.validators.optional(instance_of(list)))
-    group_wait = attr.ib(default='30s', validator=attr.validators.optional(instance_of(str)))
-    group_interval = attr.ib(default='5m', validator=attr.validators.optional(instance_of(str)))
-    repeat_interval = attr.ib(default='4h', validator=attr.validators.optional(instance_of(str)))
+    group_by = attr.ib(validator=is_valid_group_by)
+    object_matchers = attr.ib(validator=is_valid_object_matchers)
+    mute_time_intervals = attr.ib(factory=list, validator=instance_of(list))
+    continue_ = attr.ib(default=False, validator=instance_of(bool))
+    routes = attr.ib(factory=list, validator=instance_of(list))
+    group_wait = attr.ib(default='30s', validator=instance_of(str))
+    group_interval = attr.ib(default='5m', validator=instance_of(str))
+    repeat_interval = attr.ib(default='4h', validator=instance_of(str))
 
     def to_json_data(self):
         return {
@@ -1880,7 +1880,7 @@ def is_valid_times_for_mute_time_interval(instance, attribute, value):
 
     for mute_timing in value:
         if not isinstance(mute_timing, MuteTimingTimeObject):
-            raise ValueError(f"{attribute.name} must be a list of strings")
+            raise ValueError(f"{attribute.name} with value {mute_timing} must be a MuteTimingTimeObject")
 
 
 @attr.s
@@ -1910,13 +1910,13 @@ class MuteTimingTimeInterval(object):
     times = attr.ib(
         factory=list, validator=is_valid_times_for_mute_time_interval)
     weekdays = attr.ib(
-        factory=list, validator=attr.validators.optional(instance_of(list)))
+        factory=list, validator=instance_of(list))
     days_of_month = attr.ib(
-        factory=list, validator=attr.validators.optional(instance_of(list)))
+        factory=list, validator=instance_of(list))
     months = attr.ib(
-        factory=list, validator=attr.validators.optional(instance_of(list)))
+        factory=list, validator=instance_of(list))
     years = attr.ib(
-        factory=list, validator=attr.validators.optional(instance_of(list)))
+        factory=list, validator=instance_of(list))
 
     def to_json_data(self):
         return {
